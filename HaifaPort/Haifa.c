@@ -5,7 +5,7 @@ HANDLE mutex;
 //read form pipe Haifa to Eliat.
 HANDLE WriterToEilat;
 //Array of semaphores - 1 semphore for each vessel.
-HANDLE sem[MaxVessels];
+HANDLE *semaphores = NULL;
 //Global variables
 DWORD read, written;
 
@@ -17,7 +17,6 @@ void GoToEilat(int vesselID);
 
 //Initializes Global variables and mutexes,semaphores.
 void initGolbalData(int numOfShips);
-
 
 
 /*Function name: main.
@@ -141,7 +140,7 @@ int main(int argc, char* argv[])
 	{
 		if (ReadFile(ReaderToHaifa, buffer, MAX_STRING, &read, NULL))
 		{
-			if (!ReleaseSemaphore(sem[atoi(buffer) - 1], 1, NULL))
+			if (!ReleaseSemaphore(semaphores[atoi(buffer) - 1], 1, NULL))
 			{
 				fprintf(stderr, "Semaphore release sem[%d] faild\n", atoi(buffer));
 			}
@@ -172,6 +171,7 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < numOfShips; i++)
 	{
 		CloseHandle(vessels[i]);
+		CloseHandle(semaphores[i]);
 	}
 
 	sprintf(printBuffer, "Haifa Port: All Vessel Threads are Done\n");
@@ -183,7 +183,10 @@ int main(int argc, char* argv[])
 
 	printTime();
 	printf("Haifa Port: Exiting...\n");
-	ClosingMutex();
+	CloseHandle(EPMutex);
+	free(semaphores);
+	free(vessels);
+	free(vesID);
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
 	system("pause");
@@ -237,7 +240,7 @@ void GoToEilat(int vesselID)
 		printTime();
 		fprintf(stderr, "Haifa Port: Unexpected error mutex.V()\n");
 	}
-	WaitForSingleObject(sem[vesselID - 1], INFINITE);
+	WaitForSingleObject(semaphores[vesselID - 1], INFINITE);
 }
 
 /*Function name: initGolbalData.
@@ -253,23 +256,10 @@ void initGolbalData(int numOfShips)
 	if (mutex == NULL)
 	{
 		printTime();
-		fprintf(stderr, "Mutex creation faild\n");
+		fprintf(stderr, "Mutex creation Failed\n");
 		exit(1);
 	}
+	
 	//Creating Shemaphore for each Vessel.
-	for (int i = 0; i < numOfShips; i++)
-	{
-		sem[i] = CreateSemaphore(NULL, 0, 1, NULL);
-		if (sem[i] == NULL)
-		{
-			printTime();
-			fprintf(stderr, "Semaphore creation sem[%d] faild\n", i);
-			exit(1);
-		}
-	}
+	AllocateMemoryForSemaphores(&semaphores, numOfShips);
 }
-
-
-
-
-

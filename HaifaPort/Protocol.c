@@ -17,8 +17,7 @@ void ExclusivePrint(char* PB)
 	if (EPMutex)
 	{
 		WaitForSingleObject(EPMutex, INFINITE);
-		printTime();
-		printf("%s", PB);
+		PrintWithTimeStamp(PB);
 		if (!ReleaseMutex(EPMutex))
 		{
 			printf("Haifa Port: Error EPMutex release\n");
@@ -102,6 +101,39 @@ void AllocateMemoryForThreads(HANDLE** vessels, int** ids, int size)
 		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
 		exit(1);
 	}
+}
 
+void AllocateMemoryForSemaphores(HANDLE** semaphores, int size)
+{
+	*semaphores = (HANDLE*)malloc(sizeof(HANDLE) * size);
+	if (!semaphores)
+	{
+		printTime();
+		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
+		exit(1);
+	}
+	for (int i = 0; i < size; i++)
+	{
 
+		(*semaphores)[i] = CreateSemaphore(NULL, 0, 1, NULL);
+		if ((*semaphores)[i] == NULL)
+		{
+			printTime();
+			fprintf(stderr, "Creation of Semaphore %d Failed\n", i);
+			exit(1);
+		}
+	}
+}
+
+void PrintWithTimeStamp(char* str)
+{
+	int hours, minutes, seconds;
+	time_t now;
+	time(&now);
+	struct tm* local = localtime(&now);
+	hours = local->tm_hour;
+	minutes = local->tm_min;
+	seconds = local->tm_sec;
+	printf("[%02d:%02d:%02d]", hours, minutes, seconds);
+	printf(": %s", str);
 }

@@ -1,53 +1,17 @@
 #include "Quay.h"
 
 
-
-
 DWORD read, written;
 CHAR buffer[MAX_STRING];
 HANDLE WriteHandle;
 //Mutexes for Global veriables.
-HANDLE GlobalMutex1;
-HANDLE GlobalMutex2;
+HANDLE ADTMutex;
 //Barrier Mutex.
 HANDLE EnterBarrierMutex;
 //Barrier semaphore.
 HANDLE barrierSem;
-HANDLE CraneSem[MaxVessels];
-HANDLE VesSem[MaxVessels];
-
-// Vessels Thread's function.
-DWORD WINAPI StartEilat(PVOID Param);
-// Cranes Thread's function.
-DWORD WINAPI StartCrane(PVOID Param);
-
-
-//Initializes Global variables and mutexes,semaphores.
-void initGlobalData(int numOfCranes, int numOfVessels);
-
-//Barriar
-void EnterBarrier(int vesID);
-
-//Return a number between lower and upper, and divided by number of vessels.
-int RandomNumOfCranes(int lower, int upper, int numOfShips);
-
-
-//Crane operation.
-void CraneWork(int craneID);
-
-//UnloadingQuay.
-void UnloadingQuay(int vesID, int index);
-
-//Enter ADT.
-void EnterADT(int vesID);
-
-//Exit ADT.
-int ExitADT(int vesID);
-
-//Release vessels from Barriar.
-void ReleaseShips();
-
-
+HANDLE *CraneSem;
+HANDLE *VesSem;
 
 //Global variables
 int numOfVesselsInBarrier = 0;
@@ -56,12 +20,28 @@ int numOfCranesGlobal = 0;
 int numOfShipsGlobal = 0;
 int flag = 0;
 
-
-
 // array of vesselObj to hold the ship's id and weight.
 //will be initialize by the number of cranes.
 // each index in the array will represents a Crane by the Cranes ID-1.
-struct VesselObj* vesselObjArr;
+VesselInfo* vesselObjArr;
+
+// Vessels Thread's function.
+DWORD WINAPI StartEilat(PVOID Param);
+// Cranes Thread's function.
+DWORD WINAPI StartCrane(PVOID Param);
+
+//Initializes Global variables and mutexes,semaphores.
+void initGlobalData();
+
+//Barrier
+void EnterBarrier(int vesID);
+
+//Enter ADT.
+void EnterADT(int vesID);
+
+//Exit ADT.
+int ExitADT(int vesID);
+
 
 /*Function name: main.
 Description: The Main Process of Eilat Port, responsable for reciveing
@@ -80,26 +60,28 @@ void main(VOID)
 	HANDLE ReadHandle;
 	HANDLE* vessels;
 	HANDLE* cranes;
+	int* cranesIds;
+	int* vesselIds;
 	ReadHandle = GetStdHandle(STD_INPUT_HANDLE);
 	WriteHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 	char printBuffer[SIZE];
-	EPMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, EPMUTEX);
-	int numOfShips = 0;
+	EPMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, "epmutex");
+
 
 	/* now read from the pipe */
 	if (!ReadFile(ReadHandle, buffer, MAX_STRING, &read, NULL))
 	{
+
 		fprintf(stderr, "Eilat Port: Error reading from pipe\n");
 	}
 
-	numOfShips = atoi(buffer);
-	numOfShipsGlobal = numOfShips;
+	numOfShipsGlobal = atoi(buffer);
 
-	sprintf(printBuffer, "Eilat Port: Haifa requests permission to transfer %d Vessels.\n", numOfShips);
+	sprintf(printBuffer, "Eilat Port: Haifa requests permission to transfer %d Vessels.\n", numOfShipsGlobal);
 	ExclusivePrint(printBuffer);
 
 	//Check if the Vessels number is prime and sends Eilat response.
-	int res = isPrime(numOfShips);
+	int res = isPrime(numOfShipsGlobal);
 	_itoa(res, buffer, 10);
 	if (res == 0)
 	{
@@ -128,30 +110,30 @@ void main(VOID)
 		}
 	}
 
-	int* idArr = (int*)malloc(sizeof(int) * numOfShips);
+	
 	int index;
-	int numOfCranes = RandomNumOfCranes(MinVessels, (numOfShips - 1), numOfShips);
 
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
-	numOfCranesGlobal = numOfCranes;
-	initGlobalData(numOfCranes, numOfShips);
-
-	sprintf(printBuffer, "Eilat Port: Number of Cranes: %d.\n", numOfCranes);
+	initGlobalData();
+	sprintf(printBuffer, "Eilat Port: Number of Cranes: %d.\n", numOfCranesGlobal);
 	ExclusivePrint(printBuffer);
 
 	//Creating Dynamic array of cranes by the calculated number of cranes.
-	cranes = (HANDLE*)malloc(sizeof(HANDLE) * numOfCranes);
-	for (int i = 0; i < numOfCranes; i++)
+	AllocateMemoryForThreads(&cranes, &cranesIds, numOfCranesGlobal);
+	
+	
+	for (int i = 0; i < numOfCranesGlobal; i++)
 	{
-		idArr[i] = (i + 1);
-		cranes[i] = CreateThread(NULL, 0, StartCrane, idArr[i], NULL, &idArr[i]);
+		cranesIds[i] = (i + 1);
+		cranes[i] = CreateThread(NULL, 0, StartCrane, cranesIds[i], NULL, &cranesIds[i]);
 		sprintf(printBuffer, "Eilat Port: Crane %d Ready for work.\n", i + 1);
 		ExclusivePrint(printBuffer);
 	}
 
 	//Creating Dynamic array of vessels by the given number of ships.
-	vessels = (HANDLE*)malloc(sizeof(HANDLE) * numOfShips);
-	for (int i = 0; i < numOfShips; i++)
+	AllocateMemoryForThreads(&vessels, &vesselIds, numOfShipsGlobal);
+
+	for (int i = 0; i < numOfShipsGlobal; i++)
 	{
 		if (!(ReadFile(ReadHandle, buffer, MAX_STRING, &read, NULL)))
 		{
@@ -160,27 +142,27 @@ void main(VOID)
 		}
 		else
 		{
-			idArr[i] = atoi(buffer);
-			index = idArr[i] - 1;
-			vessels[index] = CreateThread(NULL, 0, StartEilat, idArr[i], NULL, &idArr[i]);
+			vesselIds[i] = atoi(buffer);
+			index = vesselIds[i] - 1;
+			vessels[index] = CreateThread(NULL, 0, StartEilat, vesselIds[i], NULL, &vesselIds[i]);
 		}
 	}
 
-	WaitForMultipleObjects(numOfShips, vessels, TRUE, INFINITE);
+	WaitForMultipleObjects(numOfShipsGlobal, vessels, TRUE, INFINITE);
 
 	//Close the Handles.
-	for (int i = 0; i < numOfShips; i++)
+	for (int i = 0; i < numOfShipsGlobal; i++)
 	{
 		CloseHandle(vessels[i]);
 	}
-	for (int i = 0; i < numOfCranes; i++)
+	for (int i = 0; i < numOfCranesGlobal; i++)
 	{
 		CloseHandle(CraneSem[i]);
 	}
 	CloseHandle(barrierSem);
 	CloseHandle(EnterBarrierMutex);
 	free(vessels);
-	free(idArr);
+	free(vesselIds);
 	free(cranes);
 
 	sprintf(printBuffer, "Eilat Port: All Vessel Threads are done.\n");
@@ -208,34 +190,11 @@ DWORD WINAPI StartCrane(PVOID Param)
 	WaitForSingleObject(CraneSem[craneID - 1], INFINITE);
 	for (int i = 0; i < (numOfShipsGlobal) / (numOfCranesGlobal); i++)
 	{
-		CraneWork(craneID);
+		CraneWork(craneID, &vesselObjArr, &VesSem, &CraneSem);
 	}
 	return 0;
 }
 
-/*Function name: CraneWork.
-Description: The crane unload the quay from the ships.
-Input: int craneID;
-Output: none.
-Algorithm: each Crane will unload the quay of the spacific ship (using vesselObjArr)
-after finishing unloading, the crane will release the spacific ship and will be in WAIT state.
-.*/
-void CraneWork(int craneID)
-{
-	char printBuffer[SIZE];
-	sprintf(printBuffer, "Eilat Port: Crane %d finished unloading %d tons.\n", craneID, vesselObjArr[craneID - 1].weight);
-	ExclusivePrint(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
-
-	if (!ReleaseSemaphore(VesSem[(vesselObjArr[craneID - 1].id) - 1], 1, NULL))
-	{
-		fprintf(stderr, "Error: release sem.V() %d \n", vesselObjArr[craneID - 1].id);
-	}
-
-	sprintf(printBuffer, "Eilat Port Crane %d: Vessel %d, we are done unloading, please exit the dock.\n", craneID, vesselObjArr[craneID - 1].id);
-	ExclusivePrint(printBuffer);
-	WaitForSingleObject(CraneSem[craneID - 1], INFINITE);
-}
 
 /*Function name: StartEilat.
 Description: The Thread fucntion. each ship starts here, returns from the unloading and sail back to Haifa.
@@ -313,7 +272,7 @@ void EnterBarrier(int vesID)
 	{
 		for (int i = 0; i < numOfCranesGlobal - 1; i++)
 		{
-			ReleaseShips();
+			ReleaseShips(&barrierSem);
 		}
 
 		if (!ReleaseMutex(EnterBarrierMutex))
@@ -323,18 +282,6 @@ void EnterBarrier(int vesID)
 	}
 }
 
-/*Function name: ReleaseShips.
-Description: release ship to continue
-Input: none.
-Output: none.
-Algorithm: none.*/
-void ReleaseShips()
-{
-	if (!ReleaseSemaphore(barrierSem, 1, NULL))
-	{
-		fprintf(stderr, "Error: Release Ships sem.V().\n");
-	}
-}
 
 /*Function name: EnterADT.
 Description: Each vessel enter the ADT.
@@ -347,7 +294,7 @@ and moving forawrd to UnloadingQuay.
 .*/
 void EnterADT(int vesID)
 {
-	WaitForSingleObject(GlobalMutex2, INFINITE);
+	WaitForSingleObject(ADTMutex, INFINITE);
 	numOfVesselsInBarrier--;
 	numOfVesselsInADT++;
 	char printBuffer[SIZE];
@@ -363,39 +310,14 @@ void EnterADT(int vesID)
 			break;
 		}
 	}
-	if (!ReleaseMutex(GlobalMutex2))
+	if (!ReleaseMutex(ADTMutex))
 	{
 		fprintf(stderr, "EnterBarrier:: Unexpected error release anotherMutex\n");
 	}
-	UnloadingQuay(vesID, index);
+	UnloadingQuay(vesID, index, &vesselObjArr, &VesSem, &CraneSem);
 }
 
-/*Function name: UnloadingQuay.
-Description: Each vessel unloading the quay from itself.
-Input: int vessel ID, int index,
-Output: none.
-Algorithm: generate random number of weight of quay.
-index represents the index of the spacific carne(the first carne found empty).
-release the spacific carne to work, and than WAIT until the carne done.*/
-void UnloadingQuay(int vesID, int index)
-{
-	char printBuffer[SIZE];
-	int weight = Random(MAX_WEIGHT, MIN_WEIGHT);
-	sprintf(printBuffer, "Vessel %d has %d Tons to Unload.\n", vesID, weight);
-	ExclusivePrint(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
-	vesselObjArr[index].weight = weight;
-
-	if (!ReleaseSemaphore(CraneSem[index], 1, NULL))
-	{
-		fprintf(stderr, "UnloadingQuay:: error %d sem.V()\n", vesID);
-	}
-	WaitForSingleObject(VesSem[vesID - 1], INFINITE);
-	sprintf(printBuffer, "Vessel %d is now empty!\n", vesID);
-	ExclusivePrint(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
-}
 
 /*Function name: ExitADT.
 Description: Each vessel leaves the ADT. the last ship to exit will release the M ships in the Barrier.
@@ -411,19 +333,19 @@ int ExitADT(int vesID)
 	sprintf(printBuffer, "Vessel %d leaveing the ADT.\n", vesID);
 	ExclusivePrint(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
-	WaitForSingleObject(GlobalMutex1, INFINITE);
+	WaitForSingleObject(ADTMutex, INFINITE);
 	flag++;
 	if (numOfVesselsInBarrier >= numOfCranesGlobal && flag % numOfCranesGlobal == 0)
 	{
 		for (int i = 0; i < numOfCranesGlobal; i++)
 		{
 			vesselObjArr[i].id = -1;
-			ReleaseShips();
+			ReleaseShips(&barrierSem);
 		}
 	}
 
 	numOfVesselsInADT--;
-	if (!ReleaseMutex(GlobalMutex1))
+	if (!ReleaseMutex(ADTMutex))
 	{
 		fprintf(stderr, "EnterBarrier:: Unexpected error release mutex\n");
 	}
@@ -431,46 +353,36 @@ int ExitADT(int vesID)
 }
 
 
-/*Function name: RandomNumOfCranes.
-Description: Generate random values between lower and upper and divided by numOfShips.
-Input: int lower,int upper, int numOfShips (the divided by).
-Output: random int between values.
-Algorithm: uses rand to generate the number.*/
-int RandomNumOfCranes(int lower, int upper, int numOfShips)
-{
-	srand(time(0));
-	int num;
-	while (TRUE)
-	{
-		num = (rand() % (upper - lower + 1)) + lower;
-		if (numOfShips % num == 0)
-		{
-			return num;
-		}
-	}
-}
-
 /*Function name: initGolbalData.
 Description: the function initializes the global mutexs for the Barriar,
 and the semaphores for each Crane and vessel.
 Input: int the number of vesseles and cranes.
 Output: none.
 Algorithm: create mutexs and check the creation,same thing for semaphores.*/
-void initGlobalData(int numOfCranes, int numOfVessels)
+void initGlobalData()
 {
-	GlobalMutex1 = CreateMutex(NULL, FALSE, NULL);
-	GlobalMutex2 = CreateMutex(NULL, FALSE, NULL);
-	EnterBarrierMutex = CreateMutex(NULL, FALSE, NULL);
-	barrierSem = CreateSemaphore(NULL, 0, numOfCranes, NULL);
-	vesselObjArr = (struct VesselObj*)malloc(sizeof(struct VesselObj) * numOfCranesGlobal);
-
-	for (int i = 0; i < numOfCranes; i++)
+	numOfCranesGlobal = RandomNumOfCranes(MinVessels, (numOfShipsGlobal - 1), numOfShipsGlobal);
+	AllocateMemoryForMutex(&ADTMutex, "ADTMutex");
+	AllocateMemoryForMutex(&EnterBarrierMutex, "EnterBarrierMutex");
+	AllocateMemoryForSemaphores(&CraneSem, "Cranes Semaphores", numOfCranesGlobal);
+	AllocateMemoryForSemaphores(&VesSem, "Vessels Semaphores", numOfShipsGlobal);
+	barrierSem = CreateSemaphore(NULL, 0, numOfCranesGlobal, NULL);
+	vesselObjArr = (VesselInfo*)malloc(numOfCranesGlobal * sizeof(VesselInfo));
+	if (!barrierSem)
 	{
-		CraneSem[i] = CreateSemaphore(NULL, 0, 1, NULL);
-		vesselObjArr[i].id = -1;
+		printTime();
+		fprintf(stderr, "Eilat Port: Error In Allocate Memory for Barrier Semaphore \n");
+		exit(1);
 	}
-	for (int i = 0; i < numOfVessels; i++)
+	if (!vesselObjArr)
 	{
-		VesSem[i] = CreateSemaphore(NULL, 0, 1, NULL);
+		printTime();
+		fprintf(stderr, "Eilat Port: Error In Allocate Memory VesselObjArray \n");
+		exit(1);
+	}
+
+	for (int i = 0; i < numOfCranesGlobal; i++)
+	{
+		vesselObjArr[i].id = -1;
 	}
 }

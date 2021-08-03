@@ -17,22 +17,28 @@
 #define MIN_SLEEP_TIME 5
 #define MAX_WEIGHT 50
 #define MIN_WEIGHT 5
-#define EPMUTEX "epmutex"
 
 
 extern HANDLE EPMutex;
 
 //struct to hold relevent info of vessel.
-struct VesselObj {
+typedef struct VesselInfos {
 	int id;
 	int weight;
-};
+} VesselInfo;
 
 
 int isPrime(int n);
-void ExclusivePrint(char* PB);
-void printTime();
 int Random(int max, int min);
+int RandomNumOfCranes(int lowerlimit, int upperlimit, int numOfShips);
+void ReleaseShips(HANDLE** barrier);
+void CraneWork(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
+void UnloadingQuay(int vesID, int index, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
+void printTime();
+void ExclusivePrint(char* PB);
 void AllocateMemoryForThreads(HANDLE** cranes, int** ids, int size);
+void AllocateMemoryForSemaphores(HANDLE** semaphores, char* errorMsg, int size);
+void AllocateMemoryForMutex(HANDLE** mutex, char* errorMsg);
+void PrintWithTimeStamp(char* str);
 
 #endif
