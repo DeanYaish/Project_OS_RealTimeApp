@@ -7,20 +7,18 @@
 #include <windows.h>
 #include <time.h>
 
-#define MAX_STRING 50
+#define MAXSTRING 50
 #define BUFFER 100
-#define MinVessels 2
-#define MaxVessels 50
-#define MAX_SLEEP_TIME 3000 //3 sec.
-#define MIN_SLEEP_TIME 5 //5 millisec.
-#define EPMUTEX "epmutex"
+#define MINNUMOFVESSELS 2
+#define MAXNUMOFVESSELS 50
+#define MAXSLEEPTIME 3000 
+#define MINSLEEPTIME 5 
+#define PMUTEX "pmutex"
 
-extern HANDLE EPMutex;
+extern HANDLE PMutex;
 
 void PrintWithTimeStamp(char* str);
-void printTime();
 int Random(int max, int min);
-void ClosingMutex();
 void NumberValidation(int numberofships);
 void EilatResponseValidation(int responsecode);
 void AllocateMemoryForThreads(HANDLE** vessels, int** ids, int size);

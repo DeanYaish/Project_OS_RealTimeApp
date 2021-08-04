@@ -1,64 +1,61 @@
 #include "Protocol.h"
 
-//Mutex for canal - Haifa to Eilat.
+//Mutex for controling vessel transfer
 HANDLE mutex;
-//read form pipe Haifa to Eliat.
+//write pipe from Haifa to Eliat.
 HANDLE WriterToEilat;
-//Array of semaphores - 1 semphore for each vessel.
+//Dynamic array for semaphores
 HANDLE *semaphores = NULL;
 //Global variables
 DWORD read, written;
 
+//Vessel creation threads function
+DWORD WINAPI initVessels(PVOID Param);
 
-//Vessels leave Haifa Port.
-DWORD WINAPI Start(PVOID Param);
+//Send vessels to eilat
+void SendVesselToEilat(int vesselID);
 
-//Vessels enter canal.
-void GoToEilat(int vesselID);
-
-//Initializes Global variables and mutexes,semaphores.
-void initGolbalData(int numOfShips);
+//init mutex and semaphores.
+void initControllers(int vesselCount);
 
 
 /*Function name: main.
-Description: the main responeable for creation of the child process
-and communication pipes, after that creates vessels threads if Eilat approved
-transfer and whan all vessels saild they WAIT.
-when the vessels starts to return, they exit WAIT and finish there voyage back
-to haifa, after all vessels are back ,closing there threads and closing all handels
-and waiting or child process to finish, when finished closing parent process and finish
-program.
-Input: reading enterd value.
-Output: 0 - end of program run.*/
+Description: responsible for initialzing haifa and eilat processes as well as the pipes to connect them. 
+initialzing all the controllers (mutex + semaphores) which are responsible for passing information between the processes.
+in charge of the creation of all the vessel threads and handling errors.
+Input:number of vessels from cmd.
+Output:printing information about the vessels as well as the progression of the program.*/
 int main(int argc, char* argv[])
 {
-	char command[MAX_STRING];
-	char buffer[MAX_STRING + 1] = "";
+	char command[MAXSTRING];
+	char buffer[MAXSTRING + 1] = "";
 	char printBuffer[BUFFER];
 	int eilatResponseCode;
 	int* vesID = NULL;
-	//read from pipe Haifa to Eliat.
-	HANDLE ReaderToEilat;
-	//Pipe from Eilat to Haifa.
-	HANDLE ReaderToHaifa, WriterToHaifa;
-	//Variable to hold the Array of vessles threads.
-	HANDLE* vessels = NULL;
-	STARTUPINFO si;
+
+	HANDLE ReaderToEilat; //read pipe from Haifa to Eliat.
+	HANDLE ReaderToHaifa, WriterToHaifa; //write and read pipes from Eliat to Haifa.	
+	HANDLE* vessels = NULL; //Pointer for array of vessels.
+	/*init data for process*/
+	STARTUPINFO si; 
 	PROCESS_INFORMATION pi;
 	SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL,TRUE };
 	ZeroMemory(&pi, sizeof(pi));
 	TCHAR ProcessName[256];
 	size_t convertedChars = 0;
-	EPMutex = CreateMutex(NULL, FALSE, EPMUTEX);
 
+	PMutex = CreateMutex(NULL, FALSE, PMUTEX); //creating mutex for handling printing
+
+	// checking if there is an input from the user
 	if (argc != 2)
 	{
 		PrintWithTimeStamp("Invalid argument count, please enter a number between 2 to 50!");
 		exit(1);
 	}
-	int numOfShips = atoi(argv[1]);
+	int vesselCount = atoi(argv[1]);
+
 	//Check validation of entered number of vessels.
-	NumberValidation(numOfShips);
+	NumberValidation(vesselCount);
 	
 	/* Create the pipe from Haifa to Eliat */
 	if (!CreatePipe(&ReaderToEilat, &WriterToEilat, &sa, 0)) {
@@ -82,9 +79,9 @@ int main(int argc, char* argv[])
 	si.dwFlags = STARTF_USESTDHANDLES;
 
 	sprintf(command, "EilatPort.exe");
-	mbstowcs_s(&convertedChars, ProcessName, MAX_STRING, command, _TRUNCATE);
+	mbstowcs_s(&convertedChars, ProcessName, MAXSTRING, command, _TRUNCATE);
 
-	/* create the child process */
+	/* create child process (eilat) */
 	if (!CreateProcess(NULL,
 		ProcessName,
 		NULL,
@@ -99,48 +96,51 @@ int main(int argc, char* argv[])
 		PrintWithTimeStamp("Process Creation Failed.\n");
 		return -1;
 	}
-	//Close Unused ends of pipes.
+	//Close unused ends of pipes.
 	CloseHandle(ReaderToEilat);
 	CloseHandle(WriterToHaifa);
 
-	/* Haifa now wants to write to the pipe */
-	if (!WriteFile(WriterToEilat, argv[1], MAX_STRING, &written, NULL))
+	/*haifa sending number of vessels to eilat process through the pipe*/
+	if (!WriteFile(WriterToEilat, argv[1], MAXSTRING, &written, NULL))
 	{
 		sprintf(printBuffer, "Error writing to pipe.\n");
 		PrintWithTimeStamp(printBuffer);
 	}
 	sprintf(printBuffer, "Sending transfer request to Eilat Port.\n");
 	PrintWithTimeStamp(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
+	Sleep(Random(MAXSLEEPTIME, MINSLEEPTIME));
 
-	/*read from the pipe */
-	if (!ReadFile(ReaderToHaifa, buffer, MAX_STRING, &read, NULL))
+	/*haifa receiving eilat response from eilat*/
+	if (!ReadFile(ReaderToHaifa, buffer, MAXSTRING, &read, NULL))
 	{
 		sprintf(printBuffer, "Error reading from pipe.\n");
 		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
-	
-	eilatResponseCode = atoi(buffer); //4.1 + 3.1
-	/*Validation of response code from eilat port*/
+
+	/*Validate response code*/
+	eilatResponseCode = atoi(buffer); //convert code from char to int
 	EilatResponseValidation(eilatResponseCode);
-	initGolbalData(numOfShips);
-	AllocateMemoryForThreads(&vessels, &vesID, numOfShips);
-	//Creating the threads for the vessles.
-	for (int i = 0; i < numOfShips; i++)
+
+	initControllers(vesselCount);
+	AllocateMemoryForThreads(&vessels, &vesID, vesselCount);
+
+	/*Create threads for vessels.*/
+	for (int i = 0; i < vesselCount; i++)
 	{
 		vesID[i] = i + 1;
-		vessels[i] = CreateThread(NULL, 0, Start, vesID[i], NULL, &vesID[i]);
+		vessels[i] = CreateThread(NULL, 0, initVessels, vesID[i], NULL, &vesID[i]);
 		if (vessels[i] == NULL)
 		{
-			PrintWithTimeStamp("Error happend while creating vessles threads.\n");
+			PrintWithTimeStamp("Error happend while creating vessels threads.\n");
 			exit(1);
 		}
 	}
 
-	for (int i = 0; i < numOfShips; i++)
+	/*handle vessels that returned from eilat*/
+	for (int i = 0; i < vesselCount; i++)
 	{
-		if (ReadFile(ReaderToHaifa, buffer, MAX_STRING, &read, NULL))
+		if (ReadFile(ReaderToHaifa, buffer, MAXSTRING, &read, NULL))
 		{
 			if (!ReleaseSemaphore(semaphores[atoi(buffer) - 1], 1, NULL))
 			{
@@ -152,43 +152,39 @@ int main(int argc, char* argv[])
 			{
 				sprintf(printBuffer, "Vessel %d - exiting Canal: Red Sea ==> Med Sea.\n", atoi(buffer));
 				PrintWithTimeStamp(printBuffer);
-				Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
+				Sleep(Random(MAXSLEEPTIME, MINSLEEPTIME));
 			}
 			sprintf(printBuffer, "Vessel %d - done sailing.\n", atoi(buffer));
 			PrintWithTimeStamp(printBuffer);
-			Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
+			Sleep(Random(MAXSLEEPTIME, MINSLEEPTIME));
 		}
 		else
 		{
 			sprintf(printBuffer,"Error reading from pipe.\n");
 			PrintWithTimeStamp(printBuffer);
 		}
-
 	}
 
-	//Waiting for all vessels to return.
-	WaitForMultipleObjects(numOfShips, vessels, TRUE, INFINITE);
+	/*wait for vessels to return and closing up*/
+	WaitForMultipleObjects(vesselCount, vessels, TRUE, INFINITE);
 
 	CloseHandle(mutex);
 	CloseHandle(WriterToEilat);
 	CloseHandle(ReaderToHaifa);
 
-	for (int i = 0; i < numOfShips; i++)
+	for (int i = 0; i < vesselCount; i++)
 	{
 		CloseHandle(vessels[i]);
 		CloseHandle(semaphores[i]);
 	}
 
-	sprintf(printBuffer, "All Vessel Threads are Done.\n");
-	PrintWithTimeStamp(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
+	PrintWithTimeStamp("All Vessel Threads are Done.\n");
+	Sleep(Random(MAXSLEEPTIME, MINSLEEPTIME));
 
-	//Waiting for Eilat to exit.
-	WaitForSingleObject(pi.hProcess, INFINITE);
-
+	WaitForSingleObject(pi.hProcess, INFINITE); 	//wait for eilat process to end
 	
 	PrintWithTimeStamp("Exiting.\n");
-	CloseHandle(EPMutex);
+	CloseHandle(PMutex);
 	free(semaphores);
 	free(vessels);
 	free(vesID);
@@ -198,43 +194,35 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-/*Function name: Start.
-Description: after the thread creation for each vessel this method start
-the vessel voyage from Haifa Port,also takes the mutex for the vessel that
-sails and enters the canal.
-Input: Param which holds the number of vesseles enterd.
-Output: none - returns to main when done.
-Algorithm: printing the vessel start sail indication and grab the cana mutex
-that only one vessel can pass at a time.*/
-DWORD WINAPI Start(PVOID Param)
+/*Function name: initVessels.
+Description: thread function for creating vessels and responsible for sending the vessel to eilat.
+Input: Param - ID for vessel.
+Output: none.*/
+DWORD WINAPI initVessels(PVOID Param)
 {
-	char printBuffer[MAX_STRING];
+	char printBuffer[MAXSTRING];
 	int vesselID = (int)Param;
 	sprintf(printBuffer, "Vessel %d - started sailing.\n", vesselID);
 	PrintWithTimeStamp(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
-	GoToEilat(vesselID);
+	Sleep(Random(MAXSLEEPTIME, MINSLEEPTIME));
+	SendVesselToEilat(vesselID);
 	return 0;
 }
 
-/*Function name: GoToEilat.
-Description: this function send each vessel(after his thread creation) to the canal
-and write to the pipe(Haifa writes to Eilat) the vessel ID that pass in the canal.
-Input: int the number of vesseles enterd.
-Output: none.
-Algorithm: responsable for printing the canal indication(on entrence) and writing to the pipe,also check
-that the writing was good and release the mutex on the canal that the current vessel took.*/
-void GoToEilat(int vesselID)
+/*Function name: SendVesselToEilat.
+Description: sending a vessel through the canal and waiting for it to return.
+Input: vesselID - ID for vessel.
+Output: none.*/
+void SendVesselToEilat(int vesselID)
 {
-	char printBuffer[MAX_STRING];
-	char vesID[MAX_STRING];
+	char printBuffer[MAXSTRING];
+	char vesID[MAXSTRING];
 	_itoa(vesselID, vesID, 10);
 	sprintf(printBuffer, "Vessel %d - entring Canal: Med Sea ==> Red Sea.\n", vesselID);
 	PrintWithTimeStamp(printBuffer);
-	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
-	//mutex.P.
+	Sleep(Random(MAXSLEEPTIME, MINSLEEPTIME));
 	WaitForSingleObject(mutex, INFINITE);
-	if (!WriteFile(WriterToEilat, vesID, MAX_STRING, &written, NULL))
+	if (!WriteFile(WriterToEilat, vesID, MAXSTRING, &written, NULL))
 	{
 		sprintf(printBuffer, "Error writing to pipe, Vessel %d did problems!\n", vesselID);
 		PrintWithTimeStamp(printBuffer);
@@ -248,17 +236,14 @@ void GoToEilat(int vesselID)
 	WaitForSingleObject(semaphores[vesselID - 1], INFINITE);
 }
 
-/*Function name: initGolbalData.
-Description: the function initializes the mutex for the canal
-and the semaphores for each vessel.
-Input: int the number of vesseles enterd.
-Output: none.
-Algorithm: create mutex and check the creation,same thing for semaphore for each vessele.*/
-void initGolbalData(int numOfShips)
+/*Function name: initControllers.
+Description: initialize mutex for the canal and semaphores for each vessel.
+Input: numOfVessels - quantity of vessels.
+Output: none.*/
+void initControllers(int numOfVessels)
 {
-	char printBuffer[MAX_STRING];
-	//Creating Canal Mutex.
-	mutex = CreateMutex(NULL, FALSE, NULL);
+	char printBuffer[MAXSTRING];
+	mutex = CreateMutex(NULL, FALSE, NULL); 	//Creating Canal Mutex.
 	if (mutex == NULL)
 	{
 		sprintf(printBuffer, "Mutex creation Failed.\n");
@@ -266,6 +251,6 @@ void initGolbalData(int numOfShips)
 		exit(1);
 	}
 	
-	//Creating Shemaphore for each Vessel.
-	AllocateMemoryForSemaphores(&semaphores, numOfShips);
+	AllocateMemoryForSemaphores(&semaphores, numOfVessels); 	//Creating semaphore for each Vessel.
+
 }

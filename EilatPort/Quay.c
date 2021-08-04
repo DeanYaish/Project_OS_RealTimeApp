@@ -1,7 +1,7 @@
 #pragma once
 #include "Quay.h"
 
-HANDLE EPMutex;
+HANDLE PMutex; //printing mutex
 
 /*Function name: isPrime.
 Description: check if the given number is prime.
@@ -21,29 +21,28 @@ int isPrime(int n)
 }
 
 /*Function name: Random.
-Description: Generate random values between min and max(for sleep time).
-Input: int max,int min.
-Output: random int between values.
-Algorithm: uses rand to generate the number.*/
+Description: calc random number.
+Input: max, min - upper and lower limit values.
+Output: random int between values.*/
 int Random(int max, int min)
 {
 	srand(time(0));
 	return ((rand() % (max - min + 1)) + min);
 }
 
-/*Function name: RandomNumOfCranes.
-Description: Generate random values between lower and upper and divided by numOfShips.
-Input: int lower,int upper, int numOfShips (the divided by).
-Output: random int between values.
-Algorithm: uses rand to generate the number.*/
-int RandomNumOfCranes(int lowerlimit, int upperlimit, int numOfShips)
+/*Function name: GenerateAmountOfCranes.
+Description: Generate random value for number of cranes between min and max value
+and check if the number of vessels is dividable by that number.
+Input: min,max - limits of the random number, numOfVessels - number of vessels.
+Output: num - random integer.*/
+int GenerateAmountOfCranes(int min, int max, int numOfVessels)
 {
 	srand(time(0));
 	int num;
-	while (TRUE)
+	while (1)
 	{
-		num = (rand() % (upperlimit - lowerlimit + 1)) + lowerlimit;
-		if (numOfShips % num == 0)
+		num = (rand() % (max - min + 1)) + min;
+		if (numOfVessels % num == 0)
 		{
 			return num;
 		}
@@ -51,12 +50,11 @@ int RandomNumOfCranes(int lowerlimit, int upperlimit, int numOfShips)
 }
 
 
-/*Function name: ReleaseShips.
-Description: release ship to continue
-Input: none.
-Output: none.
-Algorithm: none.*/
-void ReleaseShips(HANDLE** barrier)
+/*Function name: ReleaseVessels.
+Description: release vessels in the barrier.
+Input: barrier - pointer to array of semaphores inside the barrier
+Output: none.*/
+void ReleaseVessels(HANDLE** barrier)
 {
 	if (!ReleaseSemaphore(*barrier, 1, NULL))
 	{
@@ -64,15 +62,12 @@ void ReleaseShips(HANDLE** barrier)
 	}
 }
 
-
-/*Function name: CraneWork.
+/*Function name: CraneUnload.
 Description: The crane unload the quay from the ships.
-Input: int craneID;
-Output: none.
-Algorithm: each Crane will unload the quay of the spacific ship (using vesselObjArr)
-after finishing unloading, the crane will release the spacific ship and will be in WAIT state.
-.*/
-void CraneWork(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems)
+Input: craneID - id of crane, info - pointer to struct info that contain a vessel's id and weight,
+vesselSems- pointer to array of vessels semaphores, craneSems - pointer to array of cranes semaphores;
+Output: print result of action.*/
+void CraneUnload(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems)
 {
 	char printBuffer[SIZE];
 	sprintf(printBuffer, "Crane %d - finished unloading %d tons from Vessel %d.\n", craneID, (*info)[craneID - 1].weight, (*info)[craneID - 1].id);
@@ -90,18 +85,16 @@ void CraneWork(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** cra
 	WaitForSingleObject((*craneSems)[craneID - 1], INFINITE);
 }
 
-/*Function name: UnloadingQuay.
-Description: Each vessel unloading the quay from itself.
-Input: int vessel ID, int index,
-Output: none.
-Algorithm: generate random number of weight of quay.
-index represents the index of the spacific carne(the first carne found empty).
-release the spacific carne to work, and than WAIT until the carne done.*/
-void UnloadingQuay(int vesID, int index, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems)
+/*Function name: UnloadVessel.
+Description: generating random weight and responsible for unloading vessel.
+Input: vesselID - id of vessel, index - of vessel in eilat port, info - pointer to struct info that contain a vessel's id and weight,
+vesselSems- pointer to array of vessels semaphores, craneSems - pointer to array of cranes semaphores;
+Output: print result of action.*/
+void UnloadVessel(int vesselID, int index, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems)
 {
 	char printBuffer[SIZE];
 	int weight = Random(MAX_WEIGHT, MIN_WEIGHT);
-	sprintf(printBuffer, "Vessel %d - has %d Tons to unload.\n", vesID, weight);
+	sprintf(printBuffer, "Vessel %d - has %d Tons to unload.\n", vesselID, weight);
 	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
@@ -109,49 +102,43 @@ void UnloadingQuay(int vesID, int index, VesselInfo** info, HANDLE** vesselSems,
 
 	if (!ReleaseSemaphore((*craneSems)[index], 1, NULL))
 	{
-		sprintf(printBuffer, "UnloadingQuay error on %d sem.V().", vesID);
+		sprintf(printBuffer, "Unloading vessel error on %d sem.V().", vesselID);
 		PrintWithTimeStamp(printBuffer);
 	}
-	WaitForSingleObject((*vesselSems)[vesID - 1], INFINITE);
-	sprintf(printBuffer, "Vessel %d - is now empty.\n", vesID);
+	WaitForSingleObject((*vesselSems)[vesselID - 1], INFINITE);
+	sprintf(printBuffer, "Vessel %d - is now empty.\n", vesselID);
 	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 }
 
 
 /*Function name: PrintWithTimeStamp.
-Description: the function is responsable that only one
-print can happen at a time, if 2 threads want to print simultanusly
-the first to grab the mutex will print.
-for all major prints.
-Input: PB- buffer that the prints are written to.
-Output: none..*/
-
-/*Function name: printTime.
-Description: the function creates the time stamp
-for all major prints.
-Input: none.
-Output: none.
-Algorithm: uses time.h library to get current time
-from the computer by: hours,minutes,secondes.*/
+Description: the function creates the time stamp for all major prints as well as making sure that only one thread
+prints at a time using the pmutex.
+Input: str - the message to print.
+Output: prints the message to the cmd.*/
 void PrintWithTimeStamp(char* str)
 {
-	WaitForSingleObject(EPMutex, INFINITE);
+	WaitForSingleObject(PMutex, INFINITE);
 	int hours, minutes, seconds;
-	time_t now;
-	time(&now);
-	struct tm* local = localtime(&now);
-	hours = local->tm_hour;
-	minutes = local->tm_min;
-	seconds = local->tm_sec;
+	time_t currentTime;
+	time(&currentTime);
+	struct tm* timeStamp = localtime(&currentTime);
+	hours = timeStamp->tm_hour;
+	minutes = timeStamp->tm_min;
+	seconds = timeStamp->tm_sec;
 	fprintf(stderr, "[%02d:%02d:%02d]", hours, minutes, seconds);
 	fprintf(stderr, " Eilat Port: %s", str);
-	if (!ReleaseMutex(EPMutex))
+	if (!ReleaseMutex(PMutex))
 	{
-		printf(" Eilat Port: Error EPMutex release.\n");
+		fprintf(stderr, "Eilat Port: Error PMutex release.\n");
 	}
 }
 
+/*Function name: AllocateMemoryForThreads.
+Description: dynamicly allocate memory for cranes.
+Input: cranes- pointer to array of cranes, ids - pointer to array of cranes id, size - amount of cranes.
+Output: print error if needed*/
 void AllocateMemoryForThreads(HANDLE** cranes, int** ids, int size)
 {
 	char printBuffer[SIZE];
@@ -171,6 +158,10 @@ void AllocateMemoryForThreads(HANDLE** cranes, int** ids, int size)
 	}
 }
 
+/*Function name: AllocateMemoryForSemaphores.
+Description: dynamicly allocate memory for semaphores.
+Input: semaphores- pointer to array of semaphores, errorMsg -string with error message, size - amount of semaphores.
+Output: print error if needed*/
 void AllocateMemoryForSemaphores(HANDLE** semaphores,char* errorMsg ,int size)
 {
 	char printBuffer[SIZE];
@@ -194,6 +185,10 @@ void AllocateMemoryForSemaphores(HANDLE** semaphores,char* errorMsg ,int size)
 	}
 }
 
+/*Function name: AllocateMemoryForMutex.
+Description: dynamicly allocate memory for a mutex.
+Input: mutex - pointer to mutex, errorMsg -string with error message.
+Output: print error if needed*/
 void AllocateMemoryForMutex(HANDLE** mutex, char* errorMsg)
 {
 	char printBuffer[SIZE];

@@ -65,7 +65,7 @@ void main(VOID)
 	ReadHandle = GetStdHandle(STD_INPUT_HANDLE);
 	WriteHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 	char printBuffer[SIZE];
-	EPMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, "epmutex");
+	PMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, "pmutex");
 
 
 	/* now read from the pipe */
@@ -175,7 +175,7 @@ void main(VOID)
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	CloseHandle(ReadHandle);
 	CloseHandle(WriteHandle);
-	CloseHandle(EPMutex);
+	CloseHandle(PMutex);
 }
 
 /*Function name: StartCrane.
@@ -191,7 +191,7 @@ DWORD WINAPI StartCrane(PVOID Param)
 	WaitForSingleObject(CraneSem[craneID - 1], INFINITE);
 	for (int i = 0; i < (numOfShipsGlobal) / (numOfCranesGlobal); i++)
 	{
-		CraneWork(craneID, &vesselObjArr, &VesSem, &CraneSem);
+		CraneUnload(craneID, &vesselObjArr, &VesSem, &CraneSem);
 	}
 	return 0;
 }
@@ -275,7 +275,7 @@ void EnterBarrier(int vesID)
 	{
 		for (int i = 0; i < numOfCranesGlobal - 1; i++)
 		{
-			ReleaseShips(&barrierSem);
+			ReleaseVessels(&barrierSem);
 		}
 
 		if (!ReleaseMutex(EnterBarrierMutex))
@@ -321,7 +321,7 @@ void EnterADT(int vesID)
 		sprintf(printBuffer, "EnterBarrier Unexpected error on mutex release.\n");
 		PrintWithTimeStamp(printBuffer);
 	}
-	UnloadingQuay(vesID, index, &vesselObjArr, &VesSem, &CraneSem);
+	UnloadVessel(vesID, index, &vesselObjArr, &VesSem, &CraneSem);
 }
 
 
@@ -347,7 +347,7 @@ int ExitADT(int vesID)
 		for (int i = 0; i < numOfCranesGlobal; i++)
 		{
 			vesselObjArr[i].id = -1;
-			ReleaseShips(&barrierSem);
+			ReleaseVessels(&barrierSem);
 		}
 	}
 
@@ -370,7 +370,7 @@ Algorithm: create mutexs and check the creation,same thing for semaphores.*/
 void initGlobalData()
 {
 	char printBuffer[SIZE];
-	numOfCranesGlobal = RandomNumOfCranes(MinVessels, (numOfShipsGlobal - 1), numOfShipsGlobal);
+	numOfCranesGlobal = GenerateAmountOfCranes(MinVessels, (numOfShipsGlobal - 1), numOfShipsGlobal);
 	AllocateMemoryForMutex(&ADTMutex, "ADTMutex");
 	AllocateMemoryForMutex(&EnterBarrierMutex, "EnterBarrierMutex");
 	AllocateMemoryForSemaphores(&CraneSem, "Cranes Semaphores", numOfCranesGlobal);

@@ -1,71 +1,61 @@
 #include "Protocol.h"
 
-//Mutex for exclusive printing.
-HANDLE EPMutex;
+HANDLE PMutex; //print mutex.
 
-
-/*Function name: ExclusivePrint.
-Description: the function is responsable that only one
-print can happen at a time, if 2 threads want to print simultanusly
-the first to grab the mutex will print.
-for all major prints.
-Input: PB- buffer that the prints are written to.
-Output: none..*/
-
-/*Function name: printTime.
-Description: the function creates the time stamp
-for all major prints.
-Input: none.
-Output: none.
-Algorithm: uses time.h library to get current time
-from the computer by: hours,minutes,secondes.*/
+/*Function name: PrintWithTimeStamp.
+Description: the function creates the time stamp for all major prints as well as making sure that only one thread
+prints at a time using the pmutex.
+Input: str - the message to print.
+Output: prints the message to the cmd.*/
 void PrintWithTimeStamp(char* str)
 {
-	WaitForSingleObject(EPMutex, INFINITE);
+	WaitForSingleObject(PMutex, INFINITE);
 	int hours, minutes, seconds;
-	time_t now;
-	time(&now);
-	struct tm* local = localtime(&now);
-	hours = local->tm_hour;
-	minutes = local->tm_min;
-	seconds = local->tm_sec;
+	time_t currentTime;
+	time(&currentTime);
+	struct tm* timeStamp = localtime(&currentTime);
+	hours = timeStamp->tm_hour;
+	minutes = timeStamp->tm_min;
+	seconds = timeStamp->tm_sec;
 	fprintf(stderr, "[%02d:%02d:%02d]", hours, minutes, seconds);
 	fprintf(stderr, " Haifa Port: %s", str);
-	if (!ReleaseMutex(EPMutex))
+	if (!ReleaseMutex(PMutex))
 	{
-		fprintf(stderr, "Haifa Port: Error EPMutex release.\n");
+		fprintf(stderr, "Haifa Port: Error PMutex release.\n");
 	}
-
 }
 
-
 /*Function name: Random.
-Description: Generate random values between min and max(for sleep time).
-Input: int max,int min.
-Output: random int between values.
-Algorithm: uses rand to generate the number.*/
+Description: calc random number.
+Input: max, min - upper and lower limit values.
+Output: random int between values.*/
 int Random(int max, int min)
 {
 	srand(time(0));
 	return ((rand() % (max - min + 1)) + min);
 }
 
-void ClosingMutex() {
-	CloseHandle(EPMutex);
-}
-
-void NumberValidation(int numberofships) {
+/*Function name: NumberValidation.
+Description: check if the number of vessels is between the allowed min and max values.
+Input: numOfVessels - num of vessels.
+Output: print response*/
+void NumberValidation(int numOfVessels) {
 	char printBuffer[BUFFER];
-	if (numberofships < MinVessels || numberofships > MaxVessels)
+
+	if (numOfVessels < MINNUMOFVESSELS || numOfVessels > MAXNUMOFVESSELS)
 	{
 		sprintf(printBuffer,"Invalid vessles number! Please enter a valid number (between 2-50)!\n");
 		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
-	sprintf(printBuffer,"Number of Vessels entered: %d Vessels.\n", numberofships);
+	sprintf(printBuffer,"Number of Vessels entered: %d Vessels.\n", numOfVessels);
 	PrintWithTimeStamp(printBuffer);
 }
 
+/*Function name: EilatResponseValidation.
+Description: check if eilat approved the number of vessels.
+Input: responsecode - the response code from eilat.
+Output: print response*/
 void EilatResponseValidation(int responsecode) {
 	char printBuffer[BUFFER];
 	if (responsecode == 1)
@@ -81,6 +71,10 @@ void EilatResponseValidation(int responsecode) {
 	}
 }
 
+/*Function name: AllocateMemoryForThreads.
+Description: dynamicly allocate memory for threads.
+Input: vessels- pointer to array of vessels, ids - pointer to array of vessels id, size - amount of vessels.
+Output: print error if needed*/
 void AllocateMemoryForThreads(HANDLE** vessels, int** ids, int size)
 {
 	char printBuffer[BUFFER];
@@ -100,6 +94,11 @@ void AllocateMemoryForThreads(HANDLE** vessels, int** ids, int size)
 	}
 }
 
+
+/*Function name: AllocateMemoryForSemaphores.
+Description: dynamicly allocate memory for semaphores.
+Input: semaphores- pointer to array of semaphores, size - amount of semaphores.
+Output: print error if needed*/
 void AllocateMemoryForSemaphores(HANDLE** semaphores, int size)
 {
 	char printBuffer[BUFFER];
@@ -112,7 +111,6 @@ void AllocateMemoryForSemaphores(HANDLE** semaphores, int size)
 	}
 	for (int i = 0; i < size; i++)
 	{
-
 		(*semaphores)[i] = CreateSemaphore(NULL, 0, 1, NULL);
 		if ((*semaphores)[i] == NULL)
 		{

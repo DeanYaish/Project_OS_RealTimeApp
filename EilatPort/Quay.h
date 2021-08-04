@@ -19,7 +19,7 @@
 #define MIN_WEIGHT 5
 
 
-extern HANDLE EPMutex;
+extern HANDLE PMutex;
 
 //struct to hold relevent info of vessel.
 typedef struct VesselInfos {
@@ -30,10 +30,10 @@ typedef struct VesselInfos {
 
 int isPrime(int n);
 int Random(int max, int min);
-int RandomNumOfCranes(int lowerlimit, int upperlimit, int numOfShips);
-void ReleaseShips(HANDLE** barrier);
-void CraneWork(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
-void UnloadingQuay(int vesID, int index, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
+int GenerateAmountOfCranes(int lowerlimit, int upperlimit, int numOfShips);
+void ReleaseVessels(HANDLE** barrier);
+void CraneUnload(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
+void UnloadVessel(int vesID, int index, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
 void AllocateMemoryForThreads(HANDLE** cranes, int** ids, int size);
 void AllocateMemoryForSemaphores(HANDLE** semaphores, char* errorMsg, int size);
 void AllocateMemoryForMutex(HANDLE** mutex, char* errorMsg);
