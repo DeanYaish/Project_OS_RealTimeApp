@@ -72,13 +72,13 @@ void main(VOID)
 	if (!ReadFile(ReadHandle, buffer, MAX_STRING, &read, NULL))
 	{
 
-		fprintf(stderr, "Eilat Port: Error reading from pipe\n");
+		PrintWithTimeStamp("Error reading from pipe.\n");
 	}
 
 	numOfShipsGlobal = atoi(buffer);
 
-	sprintf(printBuffer, "Eilat Port: Haifa requests permission to transfer %d Vessels.\n", numOfShipsGlobal);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Haifa requests permission to transfer %d Vessels.\n", numOfShipsGlobal);
+	PrintWithTimeStamp(printBuffer);
 
 	//Check if the Vessels number is prime and sends Eilat response.
 	int res = isPrime(numOfShipsGlobal);
@@ -87,12 +87,11 @@ void main(VOID)
 	{
 		if (!WriteFile(WriteHandle, buffer, MAX_STRING, &written, NULL))
 		{
-			fprintf(stderr, "Eilat Port: Error writing to pipe\n");
+			PrintWithTimeStamp("Error writing to pipe.\n");
 		}
 		else
 		{
-			sprintf(printBuffer, "Eilat Port: Haifa we approve the transfer request.\n");
-			ExclusivePrint(printBuffer);
+			PrintWithTimeStamp("Approve the transfer request.\n");
 			Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 		}
 	}
@@ -100,12 +99,11 @@ void main(VOID)
 	{
 		if (!WriteFile(WriteHandle, buffer, MAX_STRING, &written, NULL))
 		{
-			fprintf(stderr, "Eilat Port: Error writing to pipe\n");
+			PrintWithTimeStamp("Error writing to pipe.\n");
 		}
 		else
 		{
-			sprintf(printBuffer, "Eilat Port: Haifa we deny the transfer request.\n");
-			ExclusivePrint(printBuffer);
+			PrintWithTimeStamp("Deny the transfer request.\n");
 			Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 		}
 	}
@@ -115,8 +113,8 @@ void main(VOID)
 
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	initGlobalData();
-	sprintf(printBuffer, "Eilat Port: Number of Cranes: %d.\n", numOfCranesGlobal);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Number of Cranes: %d.\n", numOfCranesGlobal);
+	PrintWithTimeStamp(printBuffer);
 
 	//Creating Dynamic array of cranes by the calculated number of cranes.
 	AllocateMemoryForThreads(&cranes, &cranesIds, numOfCranesGlobal);
@@ -126,8 +124,8 @@ void main(VOID)
 	{
 		cranesIds[i] = (i + 1);
 		cranes[i] = CreateThread(NULL, 0, StartCrane, cranesIds[i], NULL, &cranesIds[i]);
-		sprintf(printBuffer, "Eilat Port: Crane %d Ready for work.\n", i + 1);
-		ExclusivePrint(printBuffer);
+		sprintf(printBuffer, "Crane %d Ready for work.\n", i + 1);
+		PrintWithTimeStamp(printBuffer);
 	}
 
 	//Creating Dynamic array of vessels by the given number of ships.
@@ -137,7 +135,7 @@ void main(VOID)
 	{
 		if (!(ReadFile(ReadHandle, buffer, MAX_STRING, &read, NULL)))
 		{
-			fprintf(stderr, "Eilat Port: Error reading from pipe\n");
+			PrintWithTimeStamp("Error reading from pipe.\n");
 			exit(1);
 		}
 		else
@@ -158,6 +156,9 @@ void main(VOID)
 	for (int i = 0; i < numOfCranesGlobal; i++)
 	{
 		CloseHandle(CraneSem[i]);
+		sprintf(printBuffer, "Crane %d has been shutdown.\n", i + 1);
+		PrintWithTimeStamp(printBuffer);
+
 	}
 	CloseHandle(barrierSem);
 	CloseHandle(EnterBarrierMutex);
@@ -165,12 +166,12 @@ void main(VOID)
 	free(vesselIds);
 	free(cranes);
 
-	sprintf(printBuffer, "Eilat Port: All Vessel Threads are done.\n");
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "All Vessel Threads are done.\n");
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
-	sprintf(printBuffer, "Eilat Port: Exiting...\n");
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Exiting.\n");
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	CloseHandle(ReadHandle);
 	CloseHandle(WriteHandle);
@@ -208,12 +209,12 @@ DWORD WINAPI StartEilat(PVOID Param)
 	WriteHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 	char printBuffer[SIZE];
 	int vesselID = (int)Param;
-	sprintf(printBuffer, "Vessel %d - exiting Canal: Med. Sea ==> Red Sea\n", vesselID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - exiting Canal: Med Sea ==> Red Sea.\n", vesselID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
-	sprintf(printBuffer, "Vessel %d arrived @ Eilat Port\n", vesselID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - docking at the port.\n", vesselID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
 	EnterBarrier(vesselID);
@@ -224,16 +225,17 @@ DWORD WINAPI StartEilat(PVOID Param)
 
 	if (returnVesID != vesselID)
 	{
-		printTime();
-		fprintf(stderr, "Eilat Port: Error, not the same ship came back from ADT\n");
+		sprintf(printBuffer, "Error, not the same ship came back from ADT.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	else if (!WriteFile(WriteHandle, buffer, MAX_STRING, &written, NULL))
 	{
-		fprintf(stderr, "Eilat Port: Error writing to pipe\n");
+		sprintf(printBuffer, "Error writing to pipe\n");
+		PrintWithTimeStamp(printBuffer);
 	}
-	sprintf(printBuffer, "Vessel %d - entering Canal: Red Sea ==> Med. Sea.\n", vesselID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - entering Canal: Red Sea ==> Med Sea.\n", vesselID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	return 0;
 }
@@ -251,8 +253,8 @@ void EnterBarrier(int vesID)
 {
 	char printBuffer[SIZE];
 	WaitForSingleObject(EnterBarrierMutex, INFINITE);
-	sprintf(printBuffer, "Eilat Port: Vessel %d has entered the Barrier\n", vesID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - entered the Barrier.\n", vesID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	numOfVesselsInBarrier++;
 
@@ -260,11 +262,12 @@ void EnterBarrier(int vesID)
 	{
 		if (!ReleaseMutex(EnterBarrierMutex))
 		{
-			fprintf(stderr, "EnterBarrier :: Unexpected error %d release mutex\n", vesID);
+			sprintf(printBuffer, "EnterBarrier Unexpected error on mutex %d release.\n", vesID);
+			PrintWithTimeStamp(printBuffer);
 		}
 
-		sprintf(printBuffer, "Vessle %d is in at the barrier\n", vesID);
-		ExclusivePrint(printBuffer);
+		sprintf(printBuffer, "Vessle %d - waiting to enter the ADT.\n", vesID);
+		PrintWithTimeStamp(printBuffer);
 		Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 		WaitForSingleObject(barrierSem, INFINITE);
 	}
@@ -277,7 +280,8 @@ void EnterBarrier(int vesID)
 
 		if (!ReleaseMutex(EnterBarrierMutex))
 		{
-			fprintf(stderr, "EnterBarrier :: Unexpected error %d release mutex\n", vesID);
+			sprintf(printBuffer, "EnterBarrier Unexpected error on mutex %d release.\n", vesID);
+			PrintWithTimeStamp(printBuffer);
 		}
 	}
 }
@@ -303,16 +307,19 @@ void EnterADT(int vesID)
 	{
 		if (vesselObjArr[index].id == -1)
 		{
+			sprintf(printBuffer, "Vessel %d - inside ADT.\n", vesID);
+			PrintWithTimeStamp(printBuffer);
 			vesselObjArr[index].id = vesID;
-			sprintf(printBuffer, "Crane %d Works for Vessel %d\n", (index + 1), vesID);
-			ExclusivePrint(printBuffer);
+			sprintf(printBuffer, "Crane %d - currently unloading Vessel %d.\n", index + 1, vesID);
+			PrintWithTimeStamp(printBuffer);
 			Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 			break;
 		}
 	}
 	if (!ReleaseMutex(ADTMutex))
 	{
-		fprintf(stderr, "EnterBarrier:: Unexpected error release anotherMutex\n");
+		sprintf(printBuffer, "EnterBarrier Unexpected error on mutex release.\n");
+		PrintWithTimeStamp(printBuffer);
 	}
 	UnloadingQuay(vesID, index, &vesselObjArr, &VesSem, &CraneSem);
 }
@@ -330,8 +337,8 @@ mutex - for using global variable.*/
 int ExitADT(int vesID)
 {
 	char printBuffer[SIZE];
-	sprintf(printBuffer, "Vessel %d leaveing the ADT.\n", vesID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - leaving the ADT.\n", vesID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	WaitForSingleObject(ADTMutex, INFINITE);
 	flag++;
@@ -347,7 +354,8 @@ int ExitADT(int vesID)
 	numOfVesselsInADT--;
 	if (!ReleaseMutex(ADTMutex))
 	{
-		fprintf(stderr, "EnterBarrier:: Unexpected error release mutex\n");
+		sprintf(printBuffer, "EnterBarrier Unexpected error on mutex release.\n");
+		PrintWithTimeStamp(printBuffer);
 	}
 	return vesID;
 }
@@ -361,6 +369,7 @@ Output: none.
 Algorithm: create mutexs and check the creation,same thing for semaphores.*/
 void initGlobalData()
 {
+	char printBuffer[SIZE];
 	numOfCranesGlobal = RandomNumOfCranes(MinVessels, (numOfShipsGlobal - 1), numOfShipsGlobal);
 	AllocateMemoryForMutex(&ADTMutex, "ADTMutex");
 	AllocateMemoryForMutex(&EnterBarrierMutex, "EnterBarrierMutex");
@@ -370,14 +379,14 @@ void initGlobalData()
 	vesselObjArr = (VesselInfo*)malloc(numOfCranesGlobal * sizeof(VesselInfo));
 	if (!barrierSem)
 	{
-		printTime();
-		fprintf(stderr, "Eilat Port: Error In Allocate Memory for Barrier Semaphore \n");
+		sprintf(printBuffer, "Error In Allocate Memory for Barrier Semaphore.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	if (!vesselObjArr)
 	{
-		printTime();
-		fprintf(stderr, "Eilat Port: Error In Allocate Memory VesselObjArray \n");
+		sprintf(printBuffer, "Error In Allocate Memory VesselObjArray.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 

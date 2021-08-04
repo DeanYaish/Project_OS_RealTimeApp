@@ -9,6 +9,7 @@ HANDLE *semaphores = NULL;
 //Global variables
 DWORD read, written;
 
+
 //Vessels leave Haifa Port.
 DWORD WINAPI Start(PVOID Param);
 
@@ -48,10 +49,11 @@ int main(int argc, char* argv[])
 	ZeroMemory(&pi, sizeof(pi));
 	TCHAR ProcessName[256];
 	size_t convertedChars = 0;
+	EPMutex = CreateMutex(NULL, FALSE, EPMUTEX);
 
 	if (argc != 2)
 	{
-		printf("Invalid argument count, please enter a number between 2 to 50!");
+		PrintWithTimeStamp("Invalid argument count, please enter a number between 2 to 50!");
 		exit(1);
 	}
 	int numOfShips = atoi(argv[1]);
@@ -60,13 +62,13 @@ int main(int argc, char* argv[])
 	
 	/* Create the pipe from Haifa to Eliat */
 	if (!CreatePipe(&ReaderToEilat, &WriterToEilat, &sa, 0)) {
-		fprintf(stderr, "Create Pipe Failed\n");
+		PrintWithTimeStamp("Create Pipe Failed.\n");
 		return 1;
 	}
 
 	/* Create the pipe from Eliat to Haifa */
 	if (!CreatePipe(&ReaderToHaifa, &WriterToHaifa, &sa, 0)) {
-		fprintf(stderr, "Create Pipe Failed\n");
+		PrintWithTimeStamp("Create Pipe Failed.\n");
 		return 1;
 	}
 
@@ -94,7 +96,7 @@ int main(int argc, char* argv[])
 		&si,
 		&pi))
 	{
-		fprintf(stderr, "Process Creation Failed\n");
+		PrintWithTimeStamp("Process Creation Failed.\n");
 		return -1;
 	}
 	//Close Unused ends of pipes.
@@ -104,18 +106,18 @@ int main(int argc, char* argv[])
 	/* Haifa now wants to write to the pipe */
 	if (!WriteFile(WriterToEilat, argv[1], MAX_STRING, &written, NULL))
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error writing to pipe.\n");
+		sprintf(printBuffer, "Error writing to pipe.\n");
+		PrintWithTimeStamp(printBuffer);
 	}
-	sprintf(printBuffer, "Haifa Port: Sending transfer request to Eilat Port.\n");
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Sending transfer request to Eilat Port.\n");
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
 	/*read from the pipe */
 	if (!ReadFile(ReaderToHaifa, buffer, MAX_STRING, &read, NULL))
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error reading from pipe.\n");
+		sprintf(printBuffer, "Error reading from pipe.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	
@@ -131,7 +133,7 @@ int main(int argc, char* argv[])
 		vessels[i] = CreateThread(NULL, 0, Start, vesID[i], NULL, &vesID[i]);
 		if (vessels[i] == NULL)
 		{
-			fprintf(stderr, "Error happend while creating vessles threads\n");
+			PrintWithTimeStamp("Error happend while creating vessles threads.\n");
 			exit(1);
 		}
 	}
@@ -142,21 +144,24 @@ int main(int argc, char* argv[])
 		{
 			if (!ReleaseSemaphore(semaphores[atoi(buffer) - 1], 1, NULL))
 			{
-				fprintf(stderr, "Semaphore release sem[%d] faild\n", atoi(buffer));
+				sprintf(printBuffer, "Semaphore release sem[%d] failed.\n", atoi(buffer));
+				PrintWithTimeStamp(printBuffer);
+
 			}
 			else
 			{
-				sprintf(printBuffer, "Vessel %d - exiting Canal: Red Sea ==> Med. Sea\n", atoi(buffer));
-				ExclusivePrint(printBuffer);
+				sprintf(printBuffer, "Vessel %d - exiting Canal: Red Sea ==> Med Sea.\n", atoi(buffer));
+				PrintWithTimeStamp(printBuffer);
 				Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 			}
-			sprintf(printBuffer, "Vessel %d - done sailing @ Haifa Port\n", atoi(buffer));
-			ExclusivePrint(printBuffer);
+			sprintf(printBuffer, "Vessel %d - done sailing.\n", atoi(buffer));
+			PrintWithTimeStamp(printBuffer);
 			Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 		}
 		else
 		{
-			fprintf(stderr, "Haifa: Error reading from pipe.\n");
+			sprintf(printBuffer,"Error reading from pipe.\n");
+			PrintWithTimeStamp(printBuffer);
 		}
 
 	}
@@ -174,15 +179,15 @@ int main(int argc, char* argv[])
 		CloseHandle(semaphores[i]);
 	}
 
-	sprintf(printBuffer, "Haifa Port: All Vessel Threads are Done\n");
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "All Vessel Threads are Done.\n");
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
 	//Waiting for Eilat to exit.
 	WaitForSingleObject(pi.hProcess, INFINITE);
 
-	printTime();
-	printf("Haifa Port: Exiting...\n");
+	
+	PrintWithTimeStamp("Exiting.\n");
 	CloseHandle(EPMutex);
 	free(semaphores);
 	free(vessels);
@@ -205,8 +210,8 @@ DWORD WINAPI Start(PVOID Param)
 {
 	char printBuffer[MAX_STRING];
 	int vesselID = (int)Param;
-	sprintf(printBuffer, "Vessel %d - starts sailing @ Haifa Port\n", vesselID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - started sailing.\n", vesselID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	GoToEilat(vesselID);
 	return 0;
@@ -224,21 +229,21 @@ void GoToEilat(int vesselID)
 	char printBuffer[MAX_STRING];
 	char vesID[MAX_STRING];
 	_itoa(vesselID, vesID, 10);
-	sprintf(printBuffer, "Vessel %d - entring Canal: Med. Sea ==> Red Sea\n", vesselID);
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - entring Canal: Med Sea ==> Red Sea.\n", vesselID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 	//mutex.P.
 	WaitForSingleObject(mutex, INFINITE);
 	if (!WriteFile(WriterToEilat, vesID, MAX_STRING, &written, NULL))
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error writing to pipe, Vessel %d did problems!\n", vesselID);
+		sprintf(printBuffer, "Error writing to pipe, Vessel %d did problems!\n", vesselID);
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	if (!ReleaseMutex(mutex))
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Unexpected error mutex.V()\n");
+		sprintf(printBuffer, "Unexpected error mutex.V().\n");
+		PrintWithTimeStamp(printBuffer);
 	}
 	WaitForSingleObject(semaphores[vesselID - 1], INFINITE);
 }
@@ -251,12 +256,13 @@ Output: none.
 Algorithm: create mutex and check the creation,same thing for semaphore for each vessele.*/
 void initGolbalData(int numOfShips)
 {
+	char printBuffer[MAX_STRING];
 	//Creating Canal Mutex.
 	mutex = CreateMutex(NULL, FALSE, NULL);
 	if (mutex == NULL)
 	{
-		printTime();
-		fprintf(stderr, "Mutex creation Failed\n");
+		sprintf(printBuffer, "Mutex creation Failed.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	

@@ -34,8 +34,6 @@ int RandomNumOfCranes(int lowerlimit, int upperlimit, int numOfShips);
 void ReleaseShips(HANDLE** barrier);
 void CraneWork(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
 void UnloadingQuay(int vesID, int index, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems);
-void printTime();
-void ExclusivePrint(char* PB);
 void AllocateMemoryForThreads(HANDLE** cranes, int** ids, int size);
 void AllocateMemoryForSemaphores(HANDLE** semaphores, char* errorMsg, int size);
 void AllocateMemoryForMutex(HANDLE** mutex, char* errorMsg);

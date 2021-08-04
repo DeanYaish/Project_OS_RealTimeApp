@@ -60,8 +60,7 @@ void ReleaseShips(HANDLE** barrier)
 {
 	if (!ReleaseSemaphore(*barrier, 1, NULL))
 	{
-		printTime();
-		fprintf(stderr, "Error: Release Ships sem.V().\n");
+		PrintWithTimeStamp("Error Release Ships sem.V().");
 	}
 }
 
@@ -76,19 +75,18 @@ after finishing unloading, the crane will release the spacific ship and will be 
 void CraneWork(int craneID, VesselInfo** info, HANDLE** vesselSems, HANDLE** craneSems)
 {
 	char printBuffer[SIZE];
-	sprintf(printBuffer, "Eilat Port: Crane %d finished unloading %d tons.\n", craneID, (*info)[craneID - 1].weight);
-	printTime();
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Crane %d - finished unloading %d tons from Vessel %d.\n", craneID, (*info)[craneID - 1].weight, (*info)[craneID - 1].id);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
 	if (!ReleaseSemaphore((*vesselSems)[((*info)[craneID - 1].id) - 1], 1, NULL))
 	{
-		fprintf(stderr, "Error: release sem.V() %d \n", (*info)[craneID - 1].id);
+		sprintf(printBuffer, "Error release sem.V() %d.\n", (*info)[craneID - 1].id);
+		PrintWithTimeStamp(printBuffer);
 	}
 
-	sprintf(printBuffer, "Eilat Port Crane %d: Vessel %d, we are done unloading, please exit the dock.\n", craneID, (*info)[craneID - 1].id);
-	printTime();
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Crane %d - finished unloading Vessel %d, currently exiting the Quay.\n", craneID, (*info)[craneID - 1].id);
+	PrintWithTimeStamp(printBuffer);
 	WaitForSingleObject((*craneSems)[craneID - 1], INFINITE);
 }
 
@@ -103,25 +101,31 @@ void UnloadingQuay(int vesID, int index, VesselInfo** info, HANDLE** vesselSems,
 {
 	char printBuffer[SIZE];
 	int weight = Random(MAX_WEIGHT, MIN_WEIGHT);
-	sprintf(printBuffer, "Vessel %d has %d Tons to Unload.\n", vesID, weight);
-	printTime();
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - has %d Tons to unload.\n", vesID, weight);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 
 	(*info)[index].weight = weight;
 
 	if (!ReleaseSemaphore((*craneSems)[index], 1, NULL))
 	{
-		printTime();
-		fprintf(stderr, "UnloadingQuay:: error %d sem.V()\n", vesID);
+		sprintf(printBuffer, "UnloadingQuay error on %d sem.V().", vesID);
+		PrintWithTimeStamp(printBuffer);
 	}
 	WaitForSingleObject((*vesselSems)[vesID - 1], INFINITE);
-	sprintf(printBuffer, "Vessel %d is now empty!\n", vesID);
-	printTime();
-	ExclusivePrint(printBuffer);
+	sprintf(printBuffer, "Vessel %d - is now empty.\n", vesID);
+	PrintWithTimeStamp(printBuffer);
 	Sleep(Random(MAX_SLEEP_TIME, MIN_SLEEP_TIME));
 }
 
+
+/*Function name: PrintWithTimeStamp.
+Description: the function is responsable that only one
+print can happen at a time, if 2 threads want to print simultanusly
+the first to grab the mutex will print.
+for all major prints.
+Input: PB- buffer that the prints are written to.
+Output: none..*/
 
 /*Function name: printTime.
 Description: the function creates the time stamp
@@ -130,26 +134,7 @@ Input: none.
 Output: none.
 Algorithm: uses time.h library to get current time
 from the computer by: hours,minutes,secondes.*/
-void printTime()
-{
-	int hours, minutes, seconds;
-	time_t now;
-	time(&now);
-	struct tm* local = localtime(&now);
-	hours = local->tm_hour;
-	minutes = local->tm_min;
-	seconds = local->tm_sec;
-	printf("[%02d:%02d:%02d]", hours, minutes, seconds);
-}
-
-/*Function name: ExclusivePrint.
-Description: the function is responsable that only one
-print can happen at a time, if 2 threads want to print simultanusly
-the first to grab the mutex will print.
-for all major prints.
-Input: PB- buffer that the prints are written to.
-Output: none..*/
-void ExclusivePrint(char* PB)
+void PrintWithTimeStamp(char* str)
 {
 	WaitForSingleObject(EPMutex, INFINITE);
 	int hours, minutes, seconds;
@@ -160,38 +145,40 @@ void ExclusivePrint(char* PB)
 	minutes = local->tm_min;
 	seconds = local->tm_sec;
 	fprintf(stderr, "[%02d:%02d:%02d]", hours, minutes, seconds);
-	fprintf(stderr, "%s", PB);
+	fprintf(stderr, " Eilat Port: %s", str);
 	if (!ReleaseMutex(EPMutex))
 	{
-		printf("Eilat Port: Error EPMutex release\n");
+		printf(" Eilat Port: Error EPMutex release.\n");
 	}
 }
 
 void AllocateMemoryForThreads(HANDLE** cranes, int** ids, int size)
 {
+	char printBuffer[SIZE];
 	*cranes = (HANDLE*)malloc(sizeof(HANDLE) * size);
 	if (!cranes)
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
+		sprintf(printBuffer, "Error In Allocate Memory for vessel array.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	*ids = (int*)malloc(sizeof(int) * size);
 	if (!ids)
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
+		sprintf(printBuffer, "Error In Allocate Memory for vessel array.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 }
 
 void AllocateMemoryForSemaphores(HANDLE** semaphores,char* errorMsg ,int size)
 {
+	char printBuffer[SIZE];
 	*semaphores = (HANDLE*)malloc(sizeof(HANDLE) * size);
 	if (!semaphores)
 	{
-		printTime();
-		fprintf(stderr, "Eilat Port: Error In Allocate Memory for %s array\n", errorMsg);
+		sprintf(printBuffer, "Error In Allocate Memory for %s array.\n", errorMsg);
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 
@@ -200,8 +187,8 @@ void AllocateMemoryForSemaphores(HANDLE** semaphores,char* errorMsg ,int size)
 		(*semaphores)[i] = CreateSemaphore(NULL, 0, 1, NULL);
 		if (!(*semaphores)[i])
 		{
-			printTime();
-			fprintf(stderr, "Eilat Port: Error In Allocate Memory for %s in index %d \n", errorMsg ,i + 1);
+			sprintf(printBuffer, "Error In Allocate Memory for %s in index %d.\n", errorMsg ,i + 1);
+			PrintWithTimeStamp(printBuffer);
 			exit(1);
 		}
 	}
@@ -209,11 +196,12 @@ void AllocateMemoryForSemaphores(HANDLE** semaphores,char* errorMsg ,int size)
 
 void AllocateMemoryForMutex(HANDLE** mutex, char* errorMsg)
 {
+	char printBuffer[SIZE];
 	*mutex = CreateMutex(NULL, FALSE, NULL);
 	if (!*mutex)
 	{
-		printTime();
-		fprintf(stderr, "Eilat Port: Error In Allocate Memory for %s\n", errorMsg);
+		sprintf(printBuffer, "Error In Allocate Memory for %s.\n", errorMsg);
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 }

@@ -17,7 +17,7 @@
 
 extern HANDLE EPMutex;
 
-void ExclusivePrint(char* PB);
+void PrintWithTimeStamp(char* str);
 void printTime();
 int Random(int max, int min);
 void ClosingMutex();
@@ -25,4 +25,4 @@ void NumberValidation(int numberofships);
 void EilatResponseValidation(int responsecode);
 void AllocateMemoryForThreads(HANDLE** vessels, int** ids, int size);
 void AllocateMemoryForSemaphores(HANDLE** semaphores, int size);
-void PrintWithTimeStamp(char* str);
+

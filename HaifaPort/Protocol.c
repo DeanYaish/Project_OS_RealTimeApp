@@ -11,20 +11,6 @@ the first to grab the mutex will print.
 for all major prints.
 Input: PB- buffer that the prints are written to.
 Output: none..*/
-void ExclusivePrint(char* PB)
-{
-	EPMutex = CreateMutex(NULL, FALSE, EPMUTEX);
-	if (EPMutex)
-	{
-		WaitForSingleObject(EPMutex, INFINITE);
-		PrintWithTimeStamp(PB);
-		if (!ReleaseMutex(EPMutex))
-		{
-			printf("Haifa Port: Error EPMutex release\n");
-		}
-	}
-
-}
 
 /*Function name: printTime.
 Description: the function creates the time stamp
@@ -33,8 +19,9 @@ Input: none.
 Output: none.
 Algorithm: uses time.h library to get current time
 from the computer by: hours,minutes,secondes.*/
-void printTime()
+void PrintWithTimeStamp(char* str)
 {
+	WaitForSingleObject(EPMutex, INFINITE);
 	int hours, minutes, seconds;
 	time_t now;
 	time(&now);
@@ -42,8 +29,15 @@ void printTime()
 	hours = local->tm_hour;
 	minutes = local->tm_min;
 	seconds = local->tm_sec;
-	printf("[%02d:%02d:%02d]", hours, minutes, seconds);
+	fprintf(stderr, "[%02d:%02d:%02d]", hours, minutes, seconds);
+	fprintf(stderr, " Haifa Port: %s", str);
+	if (!ReleaseMutex(EPMutex))
+	{
+		fprintf(stderr, "Haifa Port: Error EPMutex release.\n");
+	}
+
 }
+
 
 /*Function name: Random.
 Description: Generate random values between min and max(for sleep time).
@@ -61,55 +55,59 @@ void ClosingMutex() {
 }
 
 void NumberValidation(int numberofships) {
-	printTime();
+	char printBuffer[BUFFER];
 	if (numberofships < MinVessels || numberofships > MaxVessels)
 	{
-		printf("Invalid vessles number! Please enter a valid number (between 2-50)!\n");
+		sprintf(printBuffer,"Invalid vessles number! Please enter a valid number (between 2-50)!\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
-	printf("Number of Vessels entered: %d Vessels\n", numberofships);
+	sprintf(printBuffer,"Number of Vessels entered: %d Vessels.\n", numberofships);
+	PrintWithTimeStamp(printBuffer);
 }
 
 void EilatResponseValidation(int responsecode) {
 	char printBuffer[BUFFER];
 	if (responsecode == 1)
 	{
-		sprintf(printBuffer, "Haifa Port: Eilat Denied transfer request\n");
-		ExclusivePrint(printBuffer);
+		sprintf(printBuffer, "Eilat Denied transfer request.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	else
 	{
-		sprintf(printBuffer, "Haifa Port: Eilat Approved transfer request\n");
-		ExclusivePrint(printBuffer);
+		sprintf(printBuffer, "Eilat Approved transfer request.\n");
+		PrintWithTimeStamp(printBuffer);
 	}
 }
 
 void AllocateMemoryForThreads(HANDLE** vessels, int** ids, int size)
 {
+	char printBuffer[BUFFER];
 	*vessels = (HANDLE*)malloc(sizeof(HANDLE) * size);
 	if (!vessels)
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
+		sprintf(printBuffer, "Error In Allocate Memory for vessel array.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	*ids = (int*)malloc(sizeof(int) * size);
 	if (!ids)
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
+		sprintf(printBuffer, "Error In Allocate Memory for vessel array.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 }
 
 void AllocateMemoryForSemaphores(HANDLE** semaphores, int size)
 {
+	char printBuffer[BUFFER];
 	*semaphores = (HANDLE*)malloc(sizeof(HANDLE) * size);
 	if (!semaphores)
 	{
-		printTime();
-		fprintf(stderr, "Haifa Port: Error In Allocate Memory for vessel array\n");
+		sprintf(printBuffer, "Error In Allocate Memory for vessel array.\n");
+		PrintWithTimeStamp(printBuffer);
 		exit(1);
 	}
 	for (int i = 0; i < size; i++)
@@ -118,22 +116,9 @@ void AllocateMemoryForSemaphores(HANDLE** semaphores, int size)
 		(*semaphores)[i] = CreateSemaphore(NULL, 0, 1, NULL);
 		if ((*semaphores)[i] == NULL)
 		{
-			printTime();
-			fprintf(stderr, "Creation of Semaphore %d Failed\n", i);
+			sprintf(printBuffer, "Creation of Semaphore %d Failed.\n", i);
+			PrintWithTimeStamp(printBuffer);
 			exit(1);
 		}
 	}
-}
-
-void PrintWithTimeStamp(char* str)
-{
-	int hours, minutes, seconds;
-	time_t now;
-	time(&now);
-	struct tm* local = localtime(&now);
-	hours = local->tm_hour;
-	minutes = local->tm_min;
-	seconds = local->tm_sec;
-	printf("[%02d:%02d:%02d]", hours, minutes, seconds);
-	printf(": %s", str);
 }
